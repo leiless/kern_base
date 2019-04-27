@@ -81,7 +81,7 @@ static inline void addr_sysctl_deregister(void)
 {
     ssize_t i;
     /* Deregister should follow inverted order */
-    for (i = ARRAY_LAST(sysctl_entries); i >= 0; i++) {
+    for (i = ARRAY_LAST(sysctl_entries); i >= 0; i--) {
         if (sysctl_entries[i] != NULL) {
             /* Double sysctl_unregister_oid() call causes panic */
             sysctl_unregister_oid(sysctl_entries[i]);
