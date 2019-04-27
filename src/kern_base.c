@@ -20,13 +20,13 @@
 #define ARRAY_SIZE(a)       (sizeof(a) / sizeof(*a))
 #define ARRAY_LAST(a)       (ARRAY_SIZE(a) - 1)
 
-static uint64_t hib;
-static uint64_t slide;
+static uint64_t _hib;
+static uint64_t kern;
 
 #define ADDR_BUFSZ          19
 
-static char hib_str[ADDR_BUFSZ];
-static char slide_str[ADDR_BUFSZ];
+static char _hib_str[ADDR_BUFSZ];
+static char kern_str[ADDR_BUFSZ];
 
 static SYSCTL_NODE(
     _kern,
@@ -40,20 +40,20 @@ static SYSCTL_NODE(
 static SYSCTL_STRING(
     _kern_addr,
     OID_AUTO,
-    __hib,
+    _hib,
     CTLFLAG_RD,
-    hib_str,
-    ARRAY_LAST(hib_str),
+    _hib_str,
+    ARRAY_LAST(_hib_str),
     "" /* sysctl nub: kern.addr.hib */
 )
 
 static SYSCTL_STRING(
     _kern_addr,
     OID_AUTO,
-    slide,
+    kern,
     CTLFLAG_RD,
-    slide_str,
-    ARRAY_LAST(slide_str),
+    kern_str,
+    ARRAY_LAST(kern_str),
     "" /* sysctl nub: kern.addr.slide */
 )
 
@@ -65,8 +65,8 @@ static struct sysctl_oid *sysctl_entries[] = {
     &sysctl__kern_addr,
 
     /* sysctl nubs */
-    &sysctl__kern_addr___hib,
-    &sysctl__kern_addr_slide,
+    &sysctl__kern_addr__hib,
+    &sysctl__kern_addr_kern,
 };
 
 static inline void addr_sysctl_register(void)
@@ -95,20 +95,20 @@ kern_return_t kern_slide_start(kmod_info_t *ki __unused, void *d __unused)
     uint32_t t;
 
     /* hib should less than base(specifically less 0x100000) */
-    hib = ((uint64_t) bcopy) & KERN_ADDR_MASK;
+    _hib = ((uint64_t) bcopy) & KERN_ADDR_MASK;
 
-    slide = ((uintptr_t) lck_mtx_assert) & KERN_ADDR_MASK;
+    kern = ((uintptr_t) lck_mtx_assert) & KERN_ADDR_MASK;
     while (1) {
-        t = *(uint32_t *) slide;
+        t = *(uint32_t *) kern;
         /* Only support non-fat 64-bit mach-o kernel */
         if (t == MH_MAGIC_64 || t == MH_CIGAM_64) break;
-        slide -= 0x100000;
+        kern -= 0x100000;
     }
 
-    if (slide != hib + 0x100000) return KERN_FAILURE;
+    if (kern != _hib + 0x100000) return KERN_FAILURE;
 
-    (void) snprintf(hib_str, ARRAY_SIZE(hib_str), "%#018llx", hib);
-    (void) snprintf(slide_str, ARRAY_SIZE(hib_str), "%#018llx", slide);
+    (void) snprintf(_hib_str, ARRAY_SIZE(_hib_str), "%#018llx", _hib);
+    (void) snprintf(kern_str, ARRAY_SIZE(_hib_str), "%#018llx", kern);
 
     addr_sysctl_register();
 
