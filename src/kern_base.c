@@ -40,7 +40,7 @@ static SYSCTL_NODE(
 static SYSCTL_STRING(
     _kern_addr,
     OID_AUTO,
-    hib,
+    __hib,
     CTLFLAG_RD,
     hib_str,
     ARRAY_LAST(hib_str),
@@ -65,7 +65,7 @@ static struct sysctl_oid *sysctl_entries[] = {
     &sysctl__kern_addr,
 
     /* sysctl nubs */
-    &sysctl__kern_addr_hib,
+    &sysctl__kern_addr___hib,
     &sysctl__kern_addr_slide,
 };
 
