@@ -11,9 +11,12 @@
 
 #include <sys/sysctl.h>
 
-#ifndef __TS__
-#define __TS__      "????/??/?? ??:??:??+????"
+#ifndef __kext_makefile__
+#define KEXTNAME_S          "kern_base"
 #endif
+
+#define LOG(fmt, ...)        printf(KEXTNAME_S ": " fmt "\n", ##__VA_ARGS__)
+#define LOG_ERR(fmt, ...)    LOG("[ERR] " fmt, ##__VA_ARGS__)
 
 #define KERN_ADDR_MASK      0xfffffffffff00000
 
@@ -90,7 +93,7 @@ static inline void addr_sysctl_deregister(void)
     }
 }
 
-kern_return_t kern_slide_start(kmod_info_t *ki __unused, void *d __unused)
+kern_return_t kern_base_start(kmod_info_t *ki __unused, void *d __unused)
 {
     uint32_t t;
 
@@ -105,7 +108,11 @@ kern_return_t kern_slide_start(kmod_info_t *ki __unused, void *d __unused)
         kern -= 0x100000;
     }
 
-    if (kern != _hib + 0x100000) return KERN_FAILURE;
+    if (kern != _hib + 0x100000) {
+        /* Kernel layout changes  this kext won't work */
+        LOG_ERR("bad text base  __HIB: %#llx kernel: %#llx", _hib, kern);
+        return KERN_FAILURE;
+    }
 
     (void) snprintf(_hib_str, ARRAY_SIZE(_hib_str), "%#018llx", _hib);
     (void) snprintf(kern_str, ARRAY_SIZE(_hib_str), "%#018llx", kern);
@@ -115,7 +122,7 @@ kern_return_t kern_slide_start(kmod_info_t *ki __unused, void *d __unused)
     return KERN_SUCCESS;
 }
 
-kern_return_t kern_slide_stop(kmod_info_t *ki __unused, void *d __unused)
+kern_return_t kern_base_stop(kmod_info_t *ki __unused, void *d __unused)
 {
     addr_sysctl_deregister();
     return KERN_SUCCESS;
@@ -133,8 +140,8 @@ extern kern_return_t _stop(kmod_info_t *, void *);
 KMOD_EXPLICIT_DECL2(BUNDLEID, KEXTBUILD_S, _start, _stop)
 
 /* If you intended to write a kext library  NULLify _realmain and _antimain */
-__private_extern__ kmod_start_func_t *_realmain = kern_slide_start;
-__private_extern__ kmod_stop_func_t *_antimain = kern_slide_stop;
+__private_extern__ kmod_start_func_t *_realmain = kern_base_start;
+__private_extern__ kmod_stop_func_t *_antimain = kern_base_stop;
 
 __private_extern__ int _kext_apple_cc = __APPLE_CC__;
 #endif
