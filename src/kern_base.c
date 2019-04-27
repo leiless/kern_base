@@ -3,6 +3,7 @@
  */
 
 #include <mach/mach_types.h>
+#include <libkern/libkern.h>
 #include <mach-o/loader.h>
 
 #include <kern/locks.h>
@@ -22,6 +23,11 @@
 static uint64_t hib;
 static uint64_t slide;
 
+#define ADDR_BUFSZ          19
+
+static char hib_str[ADDR_BUFSZ];
+static char slide_str[ADDR_BUFSZ];
+
 static SYSCTL_NODE(
     _kern,
     OID_AUTO,
@@ -31,21 +37,23 @@ static SYSCTL_NODE(
     "" /* sysctl node: kern.addr */
 )
 
-static SYSCTL_QUAD(
+static SYSCTL_STRING(
     _kern_addr,
     OID_AUTO,
     hib,
     CTLFLAG_RD,
-    &hib,
+    hib_str,
+    ARRAY_LAST(hib_str),
     "" /* sysctl nub: kern.addr.hib */
 )
 
-static SYSCTL_QUAD(
+static SYSCTL_STRING(
     _kern_addr,
     OID_AUTO,
     slide,
     CTLFLAG_RD,
-    &slide,
+    slide_str,
+    ARRAY_LAST(slide_str),
     "" /* sysctl nub: kern.addr.slide */
 )
 
@@ -92,11 +100,15 @@ kern_return_t kern_slide_start(kmod_info_t *ki __unused, void *d __unused)
     slide = ((uintptr_t) lck_mtx_assert) & KERN_ADDR_MASK;
     while (1) {
         t = *(uint32_t *) slide;
+        /* Only support non-fat 64-bit mach-o kernel */
         if (t == MH_MAGIC_64 || t == MH_CIGAM_64) break;
         slide -= 0x100000;
     }
 
     if (slide != hib + 0x100000) return KERN_FAILURE;
+
+    (void) snprintf(hib_str, ARRAY_SIZE(hib_str), "%#018llx", hib);
+    (void) snprintf(slide_str, ARRAY_SIZE(hib_str), "%#018llx", slide);
 
     addr_sysctl_register();
 
