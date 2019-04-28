@@ -3,7 +3,7 @@
 # Script used to tracking build number
 #
 
-set -e
+set -eu
 #set -x
 
 DIR=/var/tmp/.bundle_build_number
