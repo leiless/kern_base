@@ -57,7 +57,7 @@ static SYSCTL_STRING(
     CTLFLAG_RD,
     kern_str,
     ARRAY_LAST(kern_str),
-    "" /* sysctl nub: kern.addr.slide */
+    "" /* sysctl nub: kern.addr.kern */
 )
 
 /*
