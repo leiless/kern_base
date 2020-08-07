@@ -6,7 +6,7 @@
 #include <libkern/libkern.h>
 #include <mach-o/loader.h>
 
-#include <kern/locks.h>
+#include <kern/clock.h>
 #include <string.h>
 
 #include <sys/sysctl.h>
@@ -18,13 +18,14 @@
 #define LOG(fmt, ...)        printf(KEXTNAME_S ": " fmt "\n", ##__VA_ARGS__)
 #define LOG_ERR(fmt, ...)    LOG("[ERR] " fmt, ##__VA_ARGS__)
 
-#define KERN_ADDR_MASK      0xfffffffffff00000
+#define KERN_ADDR_MASK      0xfffffffffff00000u
 
 #define ARRAY_SIZE(a)       (sizeof(a) / sizeof(*a))
-#define ARRAY_LAST(a)       (ARRAY_SIZE(a) - 1)
+#define ARRAY_LAST(a)       (ARRAY_SIZE(a) - 1u)
 
 static uint64_t _hib;
 static uint64_t kern;
+static uint32_t step;
 
 #define ADDR_BUFSZ          19
 
@@ -60,6 +61,16 @@ static SYSCTL_STRING(
     "" /* sysctl nub: kern.addr.kern */
 )
 
+static SYSCTL_UINT(
+        _kern_addr,
+        OID_AUTO,
+        step,
+        CTLFLAG_RD,
+        &step,
+        0,
+        ""
+);
+
 /*
  * All node entries should place before nub entries
  */
@@ -70,6 +81,7 @@ static struct sysctl_oid *sysctl_entries[] = {
     /* sysctl nubs */
     &sysctl__kern_addr__hib,
     &sysctl__kern_addr_kern,
+    &sysctl__kern_addr_step,
 };
 
 static inline void addr_sysctl_register(void)
@@ -93,24 +105,31 @@ static inline void addr_sysctl_deregister(void)
     }
 }
 
+#define KERN_ADDR_STEP      (~KERN_ADDR_MASK + 1u)
+
 kern_return_t kern_base_start(kmod_info_t *ki __unused, void *d __unused)
 {
-    uint32_t t;
+    /* hib should less than base(specifically less KERN_ADDR_STEP) */
+    _hib = ((uint64_t) memcpy) & KERN_ADDR_MASK;
 
-    /* hib should less than base(specifically less 0x100000) */
-    _hib = ((uint64_t) bcopy) & KERN_ADDR_MASK;
-
-    kern = ((uintptr_t) lck_mtx_assert) & KERN_ADDR_MASK;
-    while (1) {
-        t = *(uint32_t *) kern;
-        /* Only support non-fat 64-bit mach-o kernel */
-        if (t == MH_MAGIC_64 || t == MH_CIGAM_64) break;
-        kern -= 0x100000;
+    kern = ((uintptr_t) clock_get_calendar_microtime) & KERN_ADDR_MASK;
+    while (kern > _hib + KERN_ADDR_STEP) {
+        step++;
+        kern -= KERN_ADDR_STEP;
     }
 
-    if (kern != _hib + 0x100000) {
-        /* Kernel layout changes  this kext won't work */
-        LOG_ERR("bad text base  __HIB: %#llx kernel: %#llx", _hib, kern);
+    if (kern != _hib + KERN_ADDR_STEP) {
+        /* Kernel layout changes, this kext won't work */
+        LOG_ERR("bad text base  step: %u __HIB: %#llx kernel: %#llx", step, _hib, kern);
+        return KERN_FAILURE;
+    }
+
+    struct mach_header_64 *mh = (struct mach_header_64 *) kern;
+    /* Only support non-fat 64-bit mach-o kernel */
+    if ((mh->magic != MH_MAGIC_64 && mh->magic != MH_CIGAM_64) ||
+        mh->filetype != MH_EXECUTE)
+    {
+        LOG_ERR("bad Mach-O header  step: %d magic: %#x filetype: %#x", step, mh->magic, mh->filetype);
         return KERN_FAILURE;
     }
 
