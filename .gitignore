@@ -9,4 +9,6 @@
 *.xcodeproj/
 *.xcworkspace/
 DerivedData/
+.idea/
+cmake-build-debug/
 
