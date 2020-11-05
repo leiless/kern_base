@@ -106,6 +106,9 @@ static inline void addr_sysctl_deregister(void)
 }
 
 #define KERN_ADDR_STEP      (~KERN_ADDR_MASK + 1u)
+#ifndef MH_FILESET
+#define MH_FILESET          0xc
+#endif
 
 kern_return_t kern_base_start(kmod_info_t *ki __unused, void *d __unused)
 {
@@ -127,7 +130,7 @@ kern_return_t kern_base_start(kmod_info_t *ki __unused, void *d __unused)
     struct mach_header_64 *mh = (struct mach_header_64 *) kern;
     /* Only support non-fat 64-bit mach-o kernel */
     if ((mh->magic != MH_MAGIC_64 && mh->magic != MH_CIGAM_64) ||
-        mh->filetype != MH_EXECUTE)
+        (mh->filetype != MH_EXECUTE && mh->filetype != MH_FILESET))
     {
         LOG_ERR("bad Mach-O header  step: %d magic: %#x filetype: %#x", step, mh->magic, mh->filetype);
         return KERN_FAILURE;
